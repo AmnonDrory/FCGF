@@ -69,8 +69,6 @@ if __name__ == "__main__":
 
   with open('train_fcgf_kitti_argv.pickle', 'rb') as fid:
     sys.argv = pickle.load(fid)  
-  print(sys.argv)
-  sys.exit(1)
     
   logger = logging.getLogger()
   config = get_config()
