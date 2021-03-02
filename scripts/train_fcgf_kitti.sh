@@ -18,7 +18,7 @@ export CONV1_KERNEL_SIZE=${CONV1_KERNEL_SIZE:-5}
 export EXP_GAMMA=${EXP_GAMMA:-0.99}
 export RANDOM_SCALE=${RANDOM_SCALE:-True}
 export TIME=$(date +"%Y-%m-%d_%H-%M-%S")
-export KITTI_PATH=${KITTI_PATH:-/home/chrischoy/datasets/KITTI_FCGF}
+export KITTI_PATH=${KITTI_PATH:-/home/amnon/data/kitti}
 export VERSION=$(git rev-parse HEAD)
 
 export OUT_DIR=${DATA_ROOT}/${DATASET}-v${VOXEL_SIZE}/${TRAINER}/${MODEL}/${OPTIMIZER}-lr${LR}-e${MAX_EPOCH}-b${BATCH_SIZE}i${ITER_SIZE}-modelnout${MODEL_N_OUT}${PATH_POSTFIX}/${TIME}

@@ -95,7 +95,7 @@ class AlignmentTrainer:
     self.test_valid = True if self.val_data_loader is not None else False
     self.log_step = int(np.sqrt(self.config.batch_size))
     self.model = self.model.to(self.device)
-    self.writer = SummaryWriter(logdir=config.out_dir)
+    self.writer = SummaryWriter(config.out_dir)
 
     if config.resume is not None:
       if osp.isfile(config.resume):
