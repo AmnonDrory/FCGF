@@ -74,8 +74,8 @@ if __name__ == "__main__":
   logger = logging.getLogger()
   config = get_config()
 
-  if not(os.path.isdir(config['out_dir'])):
-    os.makedirs(config['out_dir'])
+  if not(os.path.isdir(config.out_dir)):
+    os.makedirs(config.out_dir)
 
   dconfig = vars(config)
   if config.resume_dir:
