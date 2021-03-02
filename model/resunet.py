@@ -1,9 +1,10 @@
 import torch
+import torch.nn as nn
 import MinkowskiEngine as ME
 import MinkowskiEngine.MinkowskiFunctional as MEF
 from model.common import get_norm
 
-from model.residual_block import get_block
+from model.residual_block import  conv, conv_tr, get_block
 
 
 class ResUNet2(ME.MinkowskiNetwork):
@@ -11,6 +12,7 @@ class ResUNet2(ME.MinkowskiNetwork):
   BLOCK_NORM_TYPE = 'BN'
   CHANNELS = [None, 32, 64, 128, 256]
   TR_CHANNELS = [None, 32, 64, 64, 128]
+  REGION_TYPE = ME.RegionType.HYPER_CUBE
 
   # To use the model, must call initialize_coords before forward pass.
   # Once data is processed, call clear to reset the model before calling initialize_coords
@@ -18,107 +20,153 @@ class ResUNet2(ME.MinkowskiNetwork):
                in_channels=3,
                out_channels=32,
                bn_momentum=0.1,
-               normalize_feature=None,
-               conv1_kernel_size=None,
+               conv1_kernel_size=3,
+               normalize_feature=False,
                D=3):
     ME.MinkowskiNetwork.__init__(self, D)
     NORM_TYPE = self.NORM_TYPE
     BLOCK_NORM_TYPE = self.BLOCK_NORM_TYPE
     CHANNELS = self.CHANNELS
     TR_CHANNELS = self.TR_CHANNELS
+    REGION_TYPE = self.REGION_TYPE
     self.normalize_feature = normalize_feature
-    self.conv1 = ME.MinkowskiConvolution(
+    self.conv1 = conv(
         in_channels=in_channels,
         out_channels=CHANNELS[1],
         kernel_size=conv1_kernel_size,
         stride=1,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm1 = get_norm(NORM_TYPE, CHANNELS[1], bn_momentum=bn_momentum, D=D)
+    self.norm1 = get_norm(NORM_TYPE, CHANNELS[1], bn_momentum=bn_momentum, dimension=D)
 
     self.block1 = get_block(
-        BLOCK_NORM_TYPE, CHANNELS[1], CHANNELS[1], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        CHANNELS[1],
+        CHANNELS[1],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv2 = ME.MinkowskiConvolution(
+    self.conv2 = conv(
         in_channels=CHANNELS[1],
         out_channels=CHANNELS[2],
         kernel_size=3,
         stride=2,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm2 = get_norm(NORM_TYPE, CHANNELS[2], bn_momentum=bn_momentum, D=D)
+    self.norm2 = get_norm(NORM_TYPE, CHANNELS[2], bn_momentum=bn_momentum, dimension=D)
 
     self.block2 = get_block(
-        BLOCK_NORM_TYPE, CHANNELS[2], CHANNELS[2], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        CHANNELS[2],
+        CHANNELS[2],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv3 = ME.MinkowskiConvolution(
+    self.conv3 = conv(
         in_channels=CHANNELS[2],
         out_channels=CHANNELS[3],
         kernel_size=3,
         stride=2,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm3 = get_norm(NORM_TYPE, CHANNELS[3], bn_momentum=bn_momentum, D=D)
+    self.norm3 = get_norm(NORM_TYPE, CHANNELS[3], bn_momentum=bn_momentum, dimension=D)
 
     self.block3 = get_block(
-        BLOCK_NORM_TYPE, CHANNELS[3], CHANNELS[3], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        CHANNELS[3],
+        CHANNELS[3],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv4 = ME.MinkowskiConvolution(
+    self.conv4 = conv(
         in_channels=CHANNELS[3],
         out_channels=CHANNELS[4],
         kernel_size=3,
         stride=2,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm4 = get_norm(NORM_TYPE, CHANNELS[4], bn_momentum=bn_momentum, D=D)
+    self.norm4 = get_norm(NORM_TYPE, CHANNELS[4], bn_momentum=bn_momentum, dimension=D)
 
     self.block4 = get_block(
-        BLOCK_NORM_TYPE, CHANNELS[4], CHANNELS[4], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        CHANNELS[4],
+        CHANNELS[4],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv4_tr = ME.MinkowskiConvolutionTranspose(
+    self.conv4_tr = conv_tr(
         in_channels=CHANNELS[4],
         out_channels=TR_CHANNELS[4],
         kernel_size=3,
         stride=2,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm4_tr = get_norm(NORM_TYPE, TR_CHANNELS[4], bn_momentum=bn_momentum, D=D)
+    self.norm4_tr = get_norm(
+        NORM_TYPE, TR_CHANNELS[4], bn_momentum=bn_momentum, dimension=D)
 
     self.block4_tr = get_block(
-        BLOCK_NORM_TYPE, TR_CHANNELS[4], TR_CHANNELS[4], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        TR_CHANNELS[4],
+        TR_CHANNELS[4],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv3_tr = ME.MinkowskiConvolutionTranspose(
+    self.conv3_tr = conv_tr(
         in_channels=CHANNELS[3] + TR_CHANNELS[4],
         out_channels=TR_CHANNELS[3],
         kernel_size=3,
         stride=2,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm3_tr = get_norm(NORM_TYPE, TR_CHANNELS[3], bn_momentum=bn_momentum, D=D)
+    self.norm3_tr = get_norm(
+        NORM_TYPE, TR_CHANNELS[3], bn_momentum=bn_momentum, dimension=D)
 
     self.block3_tr = get_block(
-        BLOCK_NORM_TYPE, TR_CHANNELS[3], TR_CHANNELS[3], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        TR_CHANNELS[3],
+        TR_CHANNELS[3],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv2_tr = ME.MinkowskiConvolutionTranspose(
+    self.conv2_tr = conv_tr(
         in_channels=CHANNELS[2] + TR_CHANNELS[3],
         out_channels=TR_CHANNELS[2],
         kernel_size=3,
         stride=2,
         dilation=1,
         bias=False,
+        region_type=REGION_TYPE,
         dimension=D)
-    self.norm2_tr = get_norm(NORM_TYPE, TR_CHANNELS[2], bn_momentum=bn_momentum, D=D)
+    self.norm2_tr = get_norm(
+        NORM_TYPE, TR_CHANNELS[2], bn_momentum=bn_momentum, dimension=D)
 
     self.block2_tr = get_block(
-        BLOCK_NORM_TYPE, TR_CHANNELS[2], TR_CHANNELS[2], bn_momentum=bn_momentum, D=D)
+        BLOCK_NORM_TYPE,
+        TR_CHANNELS[2],
+        TR_CHANNELS[2],
+        bn_momentum=bn_momentum,
+        region_type=REGION_TYPE,
+        dimension=D)
 
-    self.conv1_tr = ME.MinkowskiConvolution(
+    self.conv1_tr = conv(
         in_channels=CHANNELS[1] + TR_CHANNELS[2],
         out_channels=TR_CHANNELS[1],
         kernel_size=1,
@@ -185,7 +233,7 @@ class ResUNet2(ME.MinkowskiNetwork):
 
     if self.normalize_feature:
       return ME.SparseTensor(
-          out.F / torch.norm(out.F, p=2, dim=1, keepdim=True),
+          out.F / (torch.norm(out.F, p=2, dim=1, keepdim=True) + 1e-8),
           coordinate_map_key=out.coordinate_map_key,
           coordinate_manager=out.coordinate_manager)
     else:
