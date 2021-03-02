@@ -69,12 +69,13 @@ if __name__ == "__main__":
 
   with open('train_fcgf_kitti_argv.pickle', 'rb') as fid:
     sys.argv = pickle.load(fid)  
+  print(sys.argv)
     
   logger = logging.getLogger()
   config = get_config()
 
-  if not(os.path.isdir(config[out_dir])):
-    os.makedirs(config[out_dir])
+  if not(os.path.isdir(config['out_dir'])):
+    os.makedirs(config['out_dir'])
 
   dconfig = vars(config)
   if config.resume_dir:
