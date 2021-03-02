@@ -1,4 +1,3 @@
-# -*- coding: future_fstrings -*-
 import open3d as o3d  # prevent loading error
 
 import sys
@@ -12,6 +11,8 @@ from config import get_config
 
 from lib.trainer import ContrastiveLossTrainer, HardestContrastiveLossTrainer, \
     TripletLossTrainer, HardestTripletLossTrainer
+
+import pickle
 
 ch = logging.StreamHandler(sys.stdout)
 logging.getLogger().setLevel(logging.INFO)
@@ -64,6 +65,10 @@ def main(config, resume=False):
 
 
 if __name__ == "__main__":
+
+  with open('train_fcgf_kitti_argv.pickle', 'rb') as fid:
+    sys.argv = pickle.load(fid)
+
   logger = logging.getLogger()
   config = get_config()
 

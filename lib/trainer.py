@@ -1,4 +1,3 @@
-# -*- coding: future_fstrings -*-
 #
 # Written by Chris Choy <chrischoy@ai.stanford.edu>
 # Distributed under MIT License
@@ -12,7 +11,7 @@ import json
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from model import load_model
 import util.transform_estimation as te
