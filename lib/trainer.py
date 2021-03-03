@@ -44,11 +44,10 @@ class AlignmentTrainer:
         normalize_feature=config.normalize_feature,
         conv1_kernel_size=config.conv1_kernel_size,
         D=3)
-    model = torch.nn.DataParallel(model)
 
     if config.weights:
       checkpoint = torch.load(config.weights)
-      model.module.load_state_dict(checkpoint['state_dict'])
+      model.load_state_dict(checkpoint['state_dict'])
 
     logging.info(model)
 
@@ -103,7 +102,7 @@ class AlignmentTrainer:
         logging.info("=> loading checkpoint '{}'".format(config.resume))
         state = torch.load(config.resume)
         self.start_epoch = state['epoch']
-        model.module.load_state_dict(state['state_dict'])
+        model.load_state_dict(state['state_dict'])
         self.scheduler.load_state_dict(state['scheduler'])
         self.optimizer.load_state_dict(state['optimizer'])
 
@@ -154,7 +153,7 @@ class AlignmentTrainer:
   def _save_checkpoint(self, epoch, filename='checkpoint'):
     state = {
         'epoch': epoch,
-        'state_dict': self.model.module.state_dict(),
+        'state_dict': self.model.state_dict(),
         'optimizer': self.optimizer.state_dict(),
         'scheduler': self.scheduler.state_dict(),
         'config': self.config,

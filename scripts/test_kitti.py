@@ -37,9 +37,8 @@ def main(config):
       bn_momentum=config.bn_momentum,
       conv1_kernel_size=config.conv1_kernel_size,
       normalize_feature=config.normalize_feature)
-  model = torch.nn.DataParallel(model)
   checkpoint = torch.load(config.save_dir + '/checkpoint.pth')
-  model.module.load_state_dict(checkpoint['state_dict'])
+  model.load_state_dict(checkpoint['state_dict'])
   model = model.to(device)
   model.eval()
 
