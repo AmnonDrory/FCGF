@@ -69,10 +69,16 @@ if __name__ == "__main__":
 
   with open('train_fcgf_kitti_argv.pickle', 'rb') as fid:
     sys.argv = pickle.load(fid)  
-  print(sys.argv)
     
   logger = logging.getLogger()
   config = get_config()
+
+  if False: # AD DEL
+    config.batch_size = 1
+    config.max_epoch = 1
+    local_file = './outputs/Experiments/KITTINMPairDataset-v0.3/HardestContrastiveLossTrainer/ResUNetBN2C/SGD-lr1e-1-e200-b8i1-modelnout32/2021-03-02_15-29-31/best_val_checkpoint.pth'
+    remote_file = 'remote_checkpoint.pth'
+    config.weights = remote_file
 
   if not(os.path.isdir(config.out_dir)):
     os.makedirs(config.out_dir)
