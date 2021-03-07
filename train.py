@@ -14,6 +14,7 @@ from lib.trainer import ContrastiveLossTrainer, HardestContrastiveLossTrainer, \
     TripletLossTrainer, HardestTripletLossTrainer
 
 import pickle
+from datetime import datetime
 
 ch = logging.StreamHandler(sys.stdout)
 logging.getLogger().setLevel(logging.INFO)
@@ -72,13 +73,18 @@ if __name__ == "__main__":
     
   logger = logging.getLogger()
   config = get_config()
+  config.out_dir = config.out_dir.replace('2021-03-02_15-29-31',datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+  print("out_dir: %s" % config.out_dir)
+  with open ('out_dir.txt', 'w') as fid:
+    fid.write(config.out_dir + '\n')
 
   if False: # AD DEL
-    config.batch_size = 1
-    config.max_epoch = 1
-    local_file = './outputs/Experiments/KITTINMPairDataset-v0.3/HardestContrastiveLossTrainer/ResUNetBN2C/SGD-lr1e-1-e200-b8i1-modelnout32/2021-03-02_15-29-31/best_val_checkpoint.pth'
-    remote_file = 'remote_checkpoint.pth'
-    config.weights = remote_file
+    config.batch_size = 2
+    config.max_epoch = 3
+    config.test_valid = False
+    # local_file = './outputs/Experiments/KITTINMPairDataset-v0.3/HardestContrastiveLossTrainer/ResUNetBN2C/SGD-lr1e-1-e200-b8i1-modelnout32/2021-03-02_15-29-31/best_val_checkpoint.pth'
+    # remote_file = 'remote_checkpoint.pth'
+    # config.weights = remote_file
 
   if not(os.path.isdir(config.out_dir)):
     os.makedirs(config.out_dir)

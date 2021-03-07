@@ -126,7 +126,7 @@ class AlignmentTrainer:
         self.writer.add_scalar(f'val/{k}', v, 0)
 
     for epoch in range(self.start_epoch, self.max_epoch + 1):
-      lr = self.scheduler.get_lr()
+      lr = self.scheduler.get_last_lr()
       logging.info(f" Epoch: {epoch}, LR: {lr}")
       self._train_epoch(epoch)
       self._save_checkpoint(epoch)
