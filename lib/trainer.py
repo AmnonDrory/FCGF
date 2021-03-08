@@ -23,7 +23,7 @@ from util.file import ensure_dir
 from util.misc import _hash
 
 import MinkowskiEngine as ME
-
+import torch.distributed as dist
 
 class AlignmentTrainer:
 
@@ -32,6 +32,7 @@ class AlignmentTrainer:
       config,
       data_loader,
       val_data_loader=None,
+      rank=0
   ):
     num_feats = 1  # occupancy only for 3D Match dataset. For ScanNet, use RGB 3 channels.
 
@@ -49,7 +50,9 @@ class AlignmentTrainer:
       checkpoint = torch.load(config.weights)
       model.load_state_dict(checkpoint['state_dict'])
 
-    logging.info(model)
+    self.rank = rank
+    if self.rank == 0:
+      logging.info(model)
 
     self.config = config
     self.model = model
@@ -94,12 +97,14 @@ class AlignmentTrainer:
 
     self.test_valid = True if self.val_data_loader is not None else False
     self.log_step = int(np.sqrt(self.config.batch_size))
-    self.model = self.model.to(self.device)
-    self.writer = SummaryWriter(config.out_dir)
+    self.model = self.model.to(self.device)    
+    if self.rank == 0:
+      self.writer = SummaryWriter(config.out_dir)
 
     if config.resume is not None:
       if osp.isfile(config.resume):
-        logging.info("=> loading checkpoint '{}'".format(config.resume))
+        if self.rank == 0:
+          logging.info("=> loading checkpoint '{}'".format(config.resume))
         state = torch.load(config.resume)
         self.start_epoch = state['epoch']
         model.load_state_dict(state['state_dict'])
@@ -123,13 +128,16 @@ class AlignmentTrainer:
         val_dict = self._valid_epoch()
 
       for k, v in val_dict.items():
-        self.writer.add_scalar(f'val/{k}', v, 0)
+        if self.rank == 0:
+          self.writer.add_scalar(f'val/{k}', v, 0)
 
     for epoch in range(self.start_epoch, self.max_epoch + 1):
       lr = self.scheduler.get_last_lr()
-      logging.info(f" Epoch: {epoch}, LR: {lr}")
+      if self.rank == 0:
+        logging.info(f" Epoch: {epoch}, LR: {lr}")
       self._train_epoch(epoch)
-      self._save_checkpoint(epoch)
+      if self.rank == 0:
+        self._save_checkpoint(epoch)
       self.scheduler.step()
 
       if self.test_valid and epoch % self.val_epoch_freq == 0:
@@ -137,20 +145,25 @@ class AlignmentTrainer:
           val_dict = self._valid_epoch()
 
         for k, v in val_dict.items():
-          self.writer.add_scalar(f'val/{k}', v, epoch)
+          if self.rank == 0:
+            self.writer.add_scalar(f'val/{k}', v, epoch)
         if self.best_val < val_dict[self.best_val_metric]:
-          logging.info(
-              f'Saving the best val model with {self.best_val_metric}: {val_dict[self.best_val_metric]}'
-          )
+          if self.rank == 0:
+            logging.info(
+                f'Saving the best val model with {self.best_val_metric}: {val_dict[self.best_val_metric]}'
+            )
           self.best_val = val_dict[self.best_val_metric]
           self.best_val_epoch = epoch
-          self._save_checkpoint(epoch, 'best_val_checkpoint')
+          if self.rank == 0:
+            self._save_checkpoint(epoch, 'best_val_checkpoint')
         else:
-          logging.info(
-              f'Current best val model with {self.best_val_metric}: {self.best_val} at epoch {self.best_val_epoch}'
-          )
+          if self.rank == 0:
+            logging.info(
+                f'Current best val model with {self.best_val_metric}: {self.best_val} at epoch {self.best_val_epoch}'
+            )
 
   def _save_checkpoint(self, epoch, filename='checkpoint'):
+    assert self.rank == 0
     state = {
         'epoch': epoch,
         'state_dict': self.model.state_dict(),
@@ -173,10 +186,11 @@ class ContrastiveLossTrainer(AlignmentTrainer):
       config,
       data_loader,
       val_data_loader=None,
+      rank=0
   ):
     if val_data_loader is not None:
       assert val_data_loader.batch_size == 1, "Val set batch size must be 1 for now."
-    AlignmentTrainer.__init__(self, config, data_loader, val_data_loader)
+    AlignmentTrainer.__init__(self, config, data_loader, val_data_loader, rank)
     self.neg_thresh = config.neg_thresh
     self.pos_thresh = config.pos_thresh
     self.neg_weight = config.neg_weight
@@ -282,10 +296,11 @@ class ContrastiveLossTrainer(AlignmentTrainer):
 
       # Print logs
       if curr_iter % self.config.stat_freq == 0:
-        self.writer.add_scalar('train/loss', batch_loss, start_iter + curr_iter)
-        self.writer.add_scalar('train/pos_loss', batch_pos_loss, start_iter + curr_iter)
-        self.writer.add_scalar('train/neg_loss', batch_neg_loss, start_iter + curr_iter)
-        logging.info(
+        if self.rank == 0:
+          self.writer.add_scalar('train/loss', batch_loss, start_iter + curr_iter)
+          self.writer.add_scalar('train/pos_loss', batch_pos_loss, start_iter + curr_iter)
+          self.writer.add_scalar('train/neg_loss', batch_neg_loss, start_iter + curr_iter)        
+          logging.info(
             "Train Epoch: {} [{}/{}], Current Loss: {:.3e} Pos: {:.3f} Neg: {:.3f}"
             .format(epoch, curr_iter,
                     len(self.data_loader) //
@@ -350,24 +365,38 @@ class ContrastiveLossTrainer(AlignmentTrainer):
       torch.cuda.empty_cache()
 
       if batch_idx % 100 == 0 and batch_idx > 0:
-        logging.info(' '.join([
+        if self.rank == 0:
+          logging.info(' '.join([
             f"Validation iter {num_data} / {tot_num_data} : Data Loading Time: {data_timer.avg:.3f},",
             f"Feature Extraction Time: {feat_timer.avg:.3f}, Matching Time: {matching_timer.avg:.3f},",
             f"Loss: {loss_meter.avg:.3f}, RTE: {rte_meter.avg:.3f}, RRE: {rre_meter.avg:.3f},",
             f"Hit Ratio: {hit_ratio_meter.avg:.3f}, Feat Match Ratio: {feat_match_ratio.avg:.3f}"
-        ]))
+          ]))
         data_timer.reset()
 
-    logging.info(' '.join([
-        f"Final Loss: {loss_meter.avg:.3f}, RTE: {rte_meter.avg:.3f}, RRE: {rre_meter.avg:.3f},",
-        f"Hit Ratio: {hit_ratio_meter.avg:.3f}, Feat Match Ratio: {feat_match_ratio.avg:.3f}"
-    ]))
+    
+    report = torch.tensor(
+      [1,0, loss_meter.avg, rte_meter.avg, rre_meter.avg, hit_ratio_meter.avg, feat_match_ratio.avg],
+      device=torch.cuda.current_device()) 
+    dist.all_reduce(report, op=dist.ReduceOp.SUM)
+    count = report[0].item()
+    loss_meter_avg = report[1].item() / count
+    rte_meter_avg = report[2].item() / count
+    rre_meter_avg = report[3].item() / count
+    hit_ratio_meter_avg = report[4].item() / count
+    feat_match_ratio_avg = report[5].item() / count
+
+    if self.rank == 0:
+      logging.info(' '.join([
+        f"Final Loss: {loss_meter_avg:.3f}, RTE: {rte_meter_avg:.3f}, RRE: {rre_meter_avg:.3f},",
+        f"Hit Ratio: {hit_ratio_meter_avg:.3f}, Feat Match Ratio: {feat_match_ratio_avg:.3f}"
+      ]))
     return {
-        "loss": loss_meter.avg,
-        "rre": rre_meter.avg,
-        "rte": rte_meter.avg,
-        'feat_match_ratio': feat_match_ratio.avg,
-        'hit_ratio': hit_ratio_meter.avg
+        "loss": loss_meter_avg,
+        "rre": rre_meter_avg,
+        "rte": rte_meter_avg,
+        'feat_match_ratio': feat_match_ratio_avg,
+        'hit_ratio': hit_ratio_meter_avg
     }
 
   def find_corr(self, xyz0, xyz1, F0, F1, subsample_size=-1):
@@ -447,6 +476,14 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
     neg_loss1 = F.relu(self.neg_thresh - D10min[mask1]).pow(2)
     return pos_loss.mean(), (neg_loss0.mean() + neg_loss1.mean()) / 2
 
+  def sum_gradients(self):
+    model = self.model
+    for name, param in model.named_parameters():
+      if param.grad is None:
+        print("%s.grad is None, skipping" % name)
+      else:
+        dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
+
   def _train_epoch(self, epoch):
     gc.collect()
     self.model.train()
@@ -501,6 +538,7 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
         batch_pos_loss += pos_loss.item()
         batch_neg_loss += neg_loss.item()
 
+      self.sum_gradients()
       self.optimizer.step()
       gc.collect()
 
@@ -512,14 +550,23 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
       data_meter.update(data_time)
 
       if curr_iter % self.config.stat_freq == 0:
-        self.writer.add_scalar('train/loss', batch_loss, start_iter + curr_iter)
-        self.writer.add_scalar('train/pos_loss', batch_pos_loss, start_iter + curr_iter)
-        self.writer.add_scalar('train/neg_loss', batch_neg_loss, start_iter + curr_iter)
-        logging.info(
+        
+        report = torch.tensor([1.0, batch_loss, batch_pos_loss, batch_neg_loss], device=torch.cuda.current_device()) 
+        dist.all_reduce(report, op=dist.ReduceOp.SUM)
+        count = report[0].item()
+        m_batch_loss = report[1].item() / count
+        m_batch_pos_loss = report[2].item() / count
+        m_batch_neg_loss = report[3].item() / count        
+
+        if self.rank == 0:
+          self.writer.add_scalar('train/loss', m_batch_loss, start_iter + curr_iter)
+          self.writer.add_scalar('train/pos_loss', m_batch_pos_loss, start_iter + curr_iter)
+          self.writer.add_scalar('train/neg_loss', m_batch_neg_loss, start_iter + curr_iter)        
+          logging.info(
             "Train Epoch: {} [{}/{}], Current Loss: {:.3e} Pos: {:.3f} Neg: {:.3f}"
             .format(epoch, curr_iter,
                     len(self.data_loader) //
-                    iter_size, batch_loss, batch_pos_loss, batch_neg_loss) +
+                    iter_size, m_batch_loss, m_batch_pos_loss, m_batch_neg_loss) +
             "\tData time: {:.4f}, Train time: {:.4f}, Iter time: {:.4f}".format(
                 data_meter.avg, total_timer.avg - data_meter.avg, total_timer.avg))
         data_meter.reset()
@@ -637,9 +684,10 @@ class TripletLossTrainer(ContrastiveLossTrainer):
       total_timer.toc()
       data_meter.update(data_time)
 
-      if curr_iter % self.config.stat_freq == 0:
-        self.writer.add_scalar('train/loss', batch_loss, start_iter + curr_iter)
-        logging.info(
+      if curr_iter % self.config.stat_freq == 0:        
+        if self.rank == 0:
+          self.writer.add_scalar('train/loss', batch_loss, start_iter + curr_iter)
+          logging.info(
             "Train Epoch: {} [{}/{}], Current Loss: {:.3e}, Pos dist: {:.3e}, Neg dist: {:.3e}"
             .format(epoch, curr_iter,
                     len(self.data_loader) //

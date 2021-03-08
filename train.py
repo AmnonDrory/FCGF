@@ -15,6 +15,9 @@ from lib.trainer import ContrastiveLossTrainer, HardestContrastiveLossTrainer, \
 
 import pickle
 from datetime import datetime
+import torch.multiprocessing as mp
+import torch.distributed as dist
+import numpy as np
 
 ch = logging.StreamHandler(sys.stdout)
 logging.getLogger().setLevel(logging.INFO)
@@ -41,18 +44,36 @@ def get_trainer(trainer):
 
 
 def main(config, resume=False):
+  seed = np.random.randint(1)
+  world_size = torch.cuda.device_count()
+  print("%d GPUs are available" % world_size)
+  mp.spawn(train_parallel, nprocs=world_size, args=(world_size,seed, config))  
+
+def train_parallel(rank, world_size, seed, config):
+  # This function is performed in parallel in several processes, one for each available GPU
+  os.environ['MASTER_ADDR'] = 'localhost'
+  os.environ['MASTER_PORT'] = '8887'
+  dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
+  torch.manual_seed(seed)
+  np.random.seed(seed)
+  torch.cuda.set_device(rank)
+  device = 'cuda:%d' % torch.cuda.current_device()
+  print("process %d, GPU: %s" % (rank, device))
+
   train_loader = make_data_loader(
       config,
       config.train_phase,
       config.batch_size,
-      num_threads=config.train_num_thread)
+      num_threads=config.train_num_thread,
+      rank=rank, world_size=world_size, seed=seed)
 
   if config.test_valid:
     val_loader = make_data_loader(
         config,
         config.val_phase,
         config.val_batch_size,
-        num_threads=config.val_num_thread)
+        num_threads=config.val_num_thread,
+        rank=rank, world_size=world_size, seed=seed)
   else:
     val_loader = None
 
@@ -61,6 +82,7 @@ def main(config, resume=False):
       config=config,
       data_loader=train_loader,
       val_data_loader=val_loader,
+      rank=rank
   )
 
   trainer.train()
@@ -77,13 +99,14 @@ if __name__ == "__main__":
   print("out_dir: %s" % config.out_dir)
   with open ('out_dir.txt', 'w') as fid:
     fid.write(config.out_dir + '\n')
-
-  if True: # AD DEL
+  
+  config.batch_size = 6
+  
+  if False: # AD DEL
     config.batch_size = 1
     config.max_epoch = 3
     config.test_valid = False
     config.train_num_thread = 1
-    config.random_scale = False
     #config.stat_freq = 20
     # local_file = './outputs/Experiments/KITTINMPairDataset-v0.3/HardestContrastiveLossTrainer/ResUNetBN2C/SGD-lr1e-1-e200-b8i1-modelnout32/2021-03-02_15-29-31/best_val_checkpoint.pth'
     # remote_file = 'remote_checkpoint.pth'

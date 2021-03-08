@@ -104,7 +104,8 @@ class PairDataset(torch.utils.data.Dataset):
                random_rotation=True,
                random_scale=True,
                manual_seed=False,
-               config=None):
+               config=None,
+               rank=0):
     self.phase = phase
     self.files = []
     self.data_objects = []
@@ -123,9 +124,11 @@ class PairDataset(torch.utils.data.Dataset):
       self.reset_seed()
 
     self.num_pos = config.num_pos_per_batch * config.batch_size
+    self.rank = rank
 
   def reset_seed(self, seed=0):
-    logging.info(f"Resetting the data loader seed to {seed}")
+    if self.rank == 0:
+      logging.info(f"Resetting the data loader seed to {seed}")
     self.randg.seed(seed)
 
   def apply_transform(self, pts, trans):
@@ -303,7 +306,8 @@ class KITTIPairDataset(PairDataset):
                random_rotation=True,
                random_scale=True,
                manual_seed=False,
-               config=None):
+               config=None,
+               rank=0):
     # For evaluation, use the odometry dataset training following the 3DFeat eval method
     if self.IS_ODOMETRY:
       self.root = root = config.kitti_root + '/dataset'
@@ -316,9 +320,10 @@ class KITTIPairDataset(PairDataset):
     pathlib.Path(self.icp_path).mkdir(parents=True, exist_ok=True)
 
     PairDataset.__init__(self, phase, transform, random_rotation, random_scale,
-                         manual_seed, config)
+                         manual_seed, config, rank)
 
-    logging.info(f"Loading the subset {phase} from {root}")
+    if self.rank == 0:
+      logging.info(f"Loading the subset {phase} from {root}")
     # Use the kitti root
     self.max_time_diff = max_time_diff = config.kitti_max_time_diff
 
@@ -489,11 +494,9 @@ class KITTIPairDataset(PairDataset):
     else:
       trans = M2
 
-    matching_search_voxel_size = self.matching_search_voxel_size
     if self.random_scale and random.random() < 0.95:
       scale = self.min_scale + \
           (self.max_scale - self.min_scale) * random.random()
-      matching_search_voxel_size *= scale
       xyz0 = scale * xyz0
       xyz1 = scale * xyz1
 
@@ -509,7 +512,7 @@ class KITTIPairDataset(PairDataset):
     pcd1 = make_open3d_point_cloud(xyz1[sel1])
 
     # Get matches
-    matches = get_matching_indices(pcd0, pcd1, trans, matching_search_voxel_size, num_pos=self.num_pos)
+    matches = get_matching_indices(pcd0, pcd1, trans, self.matching_search_voxel_size, num_pos=self.num_pos)
     pcd0_rot = copy.deepcopy(pcd0)  
     pcd0_rot.transform(trans)
 
@@ -569,7 +572,8 @@ class KITTINMPairDataset(KITTIPairDataset):
     PairDataset.__init__(self, phase, transform, random_rotation, random_scale,
                          manual_seed, config)
 
-    logging.info(f"Loading the subset {phase} from {root}")
+    if self.rank == 0:
+      logging.info(f"Loading the subset {phase} from {root}")
 
     subset_names = open(self.DATA_FILES[phase]).read().split()
     if self.IS_ODOMETRY:
@@ -646,7 +650,7 @@ ALL_DATASETS = [ThreeDMatchPairDataset, KITTIPairDataset, KITTINMPairDataset]
 dataset_str_mapping = {d.__name__: d for d in ALL_DATASETS}
 
 
-def make_data_loader(config, phase, batch_size, num_threads=0, shuffle=None):
+def make_data_loader(config, phase, batch_size, rank=0, world_size=1, seed=0, num_threads=0, shuffle=None):
   assert phase in ['train', 'trainval', 'val', 'test']
   if shuffle is None:
     shuffle = phase != 'test'
@@ -672,12 +676,20 @@ def make_data_loader(config, phase, batch_size, num_threads=0, shuffle=None):
       random_rotation=use_random_rotation,
       config=config)
 
+  sampler = torch.utils.data.distributed.DistributedSampler(
+    dset,
+    num_replicas=world_size,
+    rank=rank,
+    shuffle=shuffle,
+    seed=seed)
+
   loader = torch.utils.data.DataLoader(
       dset,
       batch_size=batch_size,
-      shuffle=shuffle,
+      shuffle=False,
       num_workers=num_threads,
       collate_fn=collate_pair_fn,
+      sampler=sampler,
       pin_memory=False,
       drop_last=True)
 
