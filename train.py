@@ -84,7 +84,7 @@ if __name__ == "__main__":
     config.test_valid = False
     config.train_num_thread = 1
     config.random_scale = False
-    config.stat_freq = 20
+    #config.stat_freq = 20
     # local_file = './outputs/Experiments/KITTINMPairDataset-v0.3/HardestContrastiveLossTrainer/ResUNetBN2C/SGD-lr1e-1-e200-b8i1-modelnout32/2021-03-02_15-29-31/best_val_checkpoint.pth'
     # remote_file = 'remote_checkpoint.pth'
     # config.weights = remote_file

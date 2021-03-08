@@ -402,13 +402,13 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
                                         positive_pairs,
                                         num_pos=5192,
                                         num_hn_samples=2048,
+                                        matching_search_voxel_size=1.2,
                                         thresh=None):
     """
     Generate negative pairs
     """
     N0, N1 = len(F0), len(F1)
     N_pos_pairs = len(positive_pairs)
-    hash_seed = max(N0, N1)
     sel0 = np.random.choice(N0, min(N0, num_hn_samples), replace=False)
     sel1 = np.random.choice(N1, min(N1, num_hn_samples), replace=False)
 
@@ -434,22 +434,13 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
     if not isinstance(positive_pairs, np.ndarray):
       positive_pairs = np.array(positive_pairs, dtype=np.int64)
 
-    pos_keys = _hash(positive_pairs, hash_seed)
-
     D01ind = sel1[D01ind.cpu().numpy()]
     D10ind = sel0[D10ind.cpu().numpy()]
-    neg_keys0 = _hash([pos_ind0.numpy(), D01ind], hash_seed)
-    neg_keys1 = _hash([D10ind, pos_ind1.numpy()], hash_seed)
-
-    mask0 = torch.from_numpy(
-        np.logical_not(np.isin(neg_keys0, pos_keys, assume_unique=False)))
-    mask1 = torch.from_numpy(
-        np.logical_not(np.isin(neg_keys1, pos_keys, assume_unique=False)))
 
     def d(x,y): 
       return torch.sqrt(torch.sum((x-y)**2,dim=1))    
-    mask0_b = d(xyz0_rot[pos_ind0,:], xyz1[D01ind,:]) > 1.2
-    mask1_b = d(xyz0_rot[D10ind,:], xyz1[pos_ind1,:]) > 1.2
+    mask0 = d(xyz0_rot[pos_ind0,:], xyz1[D01ind,:]) > matching_search_voxel_size
+    mask1 = d(xyz0_rot[D10ind,:], xyz1[pos_ind1,:]) > matching_search_voxel_size
 
     pos_loss = F.relu((posF0 - posF1).pow(2).sum(1) - self.pos_thresh)
     neg_loss0 = F.relu(self.neg_thresh - D01min[mask0]).pow(2)
@@ -497,8 +488,9 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
             F1,
             pos_pairs,
             num_pos=self.config.num_pos_per_batch * self.config.batch_size,
-            num_hn_samples=self.config.num_hn_samples_per_batch *
-            self.config.batch_size)
+            num_hn_samples=self.config.num_hn_samples_per_batch * self.config.batch_size,
+            matching_search_voxel_size=self.config.voxel_size * self.config.positive_pair_search_voxel_size_multiplier
+            )
 
         pos_loss /= iter_size
         neg_loss /= iter_size
