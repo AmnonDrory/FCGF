@@ -318,7 +318,7 @@ class ContrastiveLossTrainer(AlignmentTrainer):
     hit_ratio_meter, feat_match_ratio, loss_meter, rte_meter, rre_meter = AverageMeter(
     ), AverageMeter(), AverageMeter(), AverageMeter(), AverageMeter()
     data_timer, feat_timer, matching_timer = Timer(), Timer(), Timer()
-    tot_num_data = len(self.val_data_loader.dataset)
+    tot_num_data = len(self.val_data_loader)
     if self.val_max_iter > 0:
       tot_num_data = min(self.val_max_iter, tot_num_data)
     data_loader_iter = self.val_data_loader.__iter__()
