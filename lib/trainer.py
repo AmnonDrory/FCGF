@@ -395,6 +395,8 @@ class ContrastiveLossTrainer(AlignmentTrainer):
 class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
 
   def contrastive_hardest_negative_loss(self,
+                                        xyz0_rot,
+                                        xyz1,
                                         F0,
                                         F1,
                                         positive_pairs,
@@ -443,6 +445,12 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
         np.logical_not(np.isin(neg_keys0, pos_keys, assume_unique=False)))
     mask1 = torch.from_numpy(
         np.logical_not(np.isin(neg_keys1, pos_keys, assume_unique=False)))
+
+    def d(x,y): 
+      return torch.sqrt(torch.sum((x-y)**2,dim=1))    
+    mask0_b = d(xyz0_rot[pos_ind0,:], xyz1[D01ind,:]) > 1.2
+    mask1_b = d(xyz0_rot[D10ind,:], xyz1[pos_ind1,:]) > 1.2
+
     pos_loss = F.relu((posF0 - posF1).pow(2).sum(1) - self.pos_thresh)
     neg_loss0 = F.relu(self.neg_thresh - D01min[mask0]).pow(2)
     neg_loss1 = F.relu(self.neg_thresh - D10min[mask1]).pow(2)
@@ -483,6 +491,8 @@ class HardestContrastiveLossTrainer(ContrastiveLossTrainer):
 
         pos_pairs = input_dict['correspondences']
         pos_loss, neg_loss = self.contrastive_hardest_negative_loss(
+            input_dict['pcd0_rot'],
+            input_dict['pcd1'],
             F0,
             F1,
             pos_pairs,

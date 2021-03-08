@@ -17,15 +17,16 @@ import lib.transforms as t
 import MinkowskiEngine as ME
 
 import open3d as o3d
+import copy
 
 kitti_cache = {}
 kitti_icp_cache = {}
 
 
 def collate_pair_fn(list_data):
-  xyz0, xyz1, coords0, coords1, feats0, feats1, matching_inds, trans = list(
+  xyz0_rot, xyz0, xyz1, coords0, coords1, feats0, feats1, matching_inds, trans = list(
       zip(*list_data))
-  xyz_batch0, xyz_batch1 = [], []
+  xyz_rot_batch0, xyz_batch0, xyz_batch1 = [], [], []
   matching_inds_batch, trans_batch, len_batch = [], [], []
 
   batch_id = 0
@@ -43,6 +44,7 @@ def collate_pair_fn(list_data):
     N0 = coords0[batch_id].shape[0]
     N1 = coords1[batch_id].shape[0]
 
+    xyz_rot_batch0.append(to_tensor(xyz0_rot[batch_id]))
     xyz_batch0.append(to_tensor(xyz0[batch_id]))
     xyz_batch1.append(to_tensor(xyz1[batch_id]))
 
@@ -60,12 +62,14 @@ def collate_pair_fn(list_data):
   coords_batch1, feats_batch1 = ME.utils.sparse_collate(coords1, feats1)
 
   # Concatenate all lists
+  xyz_rot_batch0 = torch.cat(xyz_rot_batch0, 0).float()
   xyz_batch0 = torch.cat(xyz_batch0, 0).float()
   xyz_batch1 = torch.cat(xyz_batch1, 0).float()
   trans_batch = torch.cat(trans_batch, 0).float()
   matching_inds_batch = torch.cat(matching_inds_batch, 0).int()
 
   return {
+      'pcd0_rot': xyz_rot_batch0,
       'pcd0': xyz_batch0,
       'pcd1': xyz_batch1,
       'sinput0_C': coords_batch0,
@@ -504,6 +508,9 @@ class KITTIPairDataset(PairDataset):
 
     # Get matches
     matches = get_matching_indices(pcd0, pcd1, trans, matching_search_voxel_size)
+    pcd0_rot = copy.deepcopy(pcd0)  
+    pcd0_rot.transform(trans)
+
     if len(matches) < 1000:
       raise ValueError(f"{drive}, {t0}, {t1}")
 
@@ -529,7 +536,8 @@ class KITTIPairDataset(PairDataset):
       coords0, feats0 = self.transform(coords0, feats0)
       coords1, feats1 = self.transform(coords1, feats1)
 
-    return (unique_xyz0_th.float(), unique_xyz1_th.float(), coords0.int(),
+    xyz0_rot = torch.tensor(np.asarray(pcd0_rot.points), dtype=torch.float32, device=unique_xyz0_th.device)
+    return (xyz0_rot, unique_xyz0_th.float(), unique_xyz1_th.float(), coords0.int(),
             coords1.int(), feats0.float(), feats1.float(), matches, trans)
 
 
