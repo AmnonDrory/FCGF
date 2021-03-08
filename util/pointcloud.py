@@ -50,14 +50,19 @@ def compute_overlap_ratio(pcd0, pcd1, trans, voxel_size):
   return max(overlap0, overlap1)
 
 
-def get_matching_indices(source, target, trans, search_voxel_size, K=None):
+def get_matching_indices(source, target, trans, search_voxel_size, K=None, num_pos=np.inf):
   source_copy = copy.deepcopy(source)
   target_copy = copy.deepcopy(target)
   source_copy.transform(trans)
   pcd_tree = o3d.geometry.KDTreeFlann(target_copy)
 
+  xyz0_rot = np.asarray(source_copy.points)
+  N = xyz0_rot.shape[0]
+  i_sel = np.random.choice(N, min(N, num_pos), replace=False)
+
   match_inds = []
-  for i, point in enumerate(source_copy.points):
+  for i in i_sel:
+    point = xyz0_rot[i,:]
     [_, idx, _] = pcd_tree.search_radius_vector_3d(point, search_voxel_size)
     if K is not None:
       idx = idx[:K]

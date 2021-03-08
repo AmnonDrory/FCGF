@@ -122,6 +122,8 @@ class PairDataset(torch.utils.data.Dataset):
     if manual_seed:
       self.reset_seed()
 
+    self.num_pos = config.num_pos_per_batch * config.batch_size
+
   def reset_seed(self, seed=0):
     logging.info(f"Resetting the data loader seed to {seed}")
     self.randg.seed(seed)
@@ -507,7 +509,7 @@ class KITTIPairDataset(PairDataset):
     pcd1 = make_open3d_point_cloud(xyz1[sel1])
 
     # Get matches
-    matches = get_matching_indices(pcd0, pcd1, trans, matching_search_voxel_size)
+    matches = get_matching_indices(pcd0, pcd1, trans, matching_search_voxel_size, num_pos=self.num_pos)
     pcd0_rot = copy.deepcopy(pcd0)  
     pcd0_rot.transform(trans)
 
