@@ -105,7 +105,7 @@ class PairDataset(torch.utils.data.Dataset):
                random_scale=True,
                manual_seed=False,
                config=None,
-               rank=0):
+               rank=None):
     self.phase = phase
     self.files = []
     self.data_objects = []
@@ -307,7 +307,7 @@ class KITTIPairDataset(PairDataset):
                random_scale=True,
                manual_seed=False,
                config=None,
-               rank=0):
+               rank=None):
     # For evaluation, use the odometry dataset training following the 3DFeat eval method
     if self.IS_ODOMETRY:
       self.root = root = config.kitti_root + '/dataset'
@@ -558,7 +558,8 @@ class KITTINMPairDataset(KITTIPairDataset):
                random_rotation=True,
                random_scale=True,
                manual_seed=False,
-               config=None):
+               config=None,
+               rank=None):
     if self.IS_ODOMETRY:
       self.root = root = os.path.join(config.kitti_root, 'dataset')
       random_rotation = self.TEST_RANDOM_ROTATION
@@ -570,7 +571,7 @@ class KITTINMPairDataset(KITTIPairDataset):
     pathlib.Path(self.icp_path).mkdir(parents=True, exist_ok=True)
 
     PairDataset.__init__(self, phase, transform, random_rotation, random_scale,
-                         manual_seed, config)
+                         manual_seed, config, rank)
 
     if self.rank == 0:
       logging.info(f"Loading the subset {phase} from {root}")
@@ -674,7 +675,8 @@ def make_data_loader(config, phase, batch_size, rank=0, world_size=1, seed=0, nu
       transform=t.Compose(transforms),
       random_scale=use_random_scale,
       random_rotation=use_random_rotation,
-      config=config)
+      config=config,
+      rank=rank)
 
   sampler = torch.utils.data.distributed.DistributedSampler(
     dset,

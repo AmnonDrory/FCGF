@@ -32,7 +32,7 @@ class AlignmentTrainer:
       config,
       data_loader,
       val_data_loader=None,
-      rank=0
+      rank=None
   ):
     num_feats = 1  # occupancy only for 3D Match dataset. For ScanNet, use RGB 3 channels.
 
@@ -186,7 +186,7 @@ class ContrastiveLossTrainer(AlignmentTrainer):
       config,
       data_loader,
       val_data_loader=None,
-      rank=0
+      rank=None
   ):
     if val_data_loader is not None:
       assert val_data_loader.batch_size == 1, "Val set batch size must be 1 for now."
