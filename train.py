@@ -19,16 +19,10 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 import numpy as np
 
-ch = logging.StreamHandler(sys.stdout)
-logging.getLogger().setLevel(logging.INFO)
-logging.basicConfig(
-    format='%(asctime)s %(message)s', datefmt='%m/%d %H:%M:%S', handlers=[ch])
+
 
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
-
-logging.basicConfig(level=logging.INFO, format="")
-
 
 def get_trainer(trainer):
   if trainer == 'ContrastiveLossTrainer':
@@ -99,7 +93,7 @@ if __name__ == "__main__":
   print("out_dir: %s" % config.out_dir)
   with open ('out_dir.txt', 'w') as fid:
     fid.write(config.out_dir + '\n')
-  
+
   config.batch_size = 6
   
   if False: # AD DEL
@@ -115,6 +109,13 @@ if __name__ == "__main__":
   if not(os.path.isdir(config.out_dir)):
     os.makedirs(config.out_dir)
 
+  ch = logging.StreamHandler(sys.stdout)
+  fh = logging.FileHandler(config.out_dir + '/log.txt')
+  logging.getLogger().setLevel(logging.INFO)
+  logging.basicConfig(
+      format='%(asctime)s %(message)s', datefmt='%m/%d %H:%M:%S', handlers=[ch, fh])
+  logging.basicConfig(level=logging.INFO, format="")   
+  
   dconfig = vars(config)
   if config.resume_dir:
     resume_config = json.load(open(config.resume_dir + '/config.json', 'r'))

@@ -376,7 +376,7 @@ class ContrastiveLossTrainer(AlignmentTrainer):
 
     
     report = torch.tensor(
-      [1,0, loss_meter.avg, rte_meter.avg, rre_meter.avg, hit_ratio_meter.avg, feat_match_ratio.avg],
+      [1.0, loss_meter.avg, rte_meter.avg, rre_meter.avg, hit_ratio_meter.avg, feat_match_ratio.avg],
       device=torch.cuda.current_device()) 
     dist.all_reduce(report, op=dist.ReduceOp.SUM)
     count = report[0].item()
