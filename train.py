@@ -19,10 +19,27 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 import numpy as np
 
+with open('train_fcgf_kitti_argv.pickle', 'rb') as fid:
+  sys.argv = pickle.load(fid)  
+config = get_config()
+config.out_dir = config.out_dir.replace('2021-03-02_15-29-31',datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+with open ('out_dir.txt', 'w') as fid:
+  fid.write(config.out_dir + '\n')
+if not(os.path.isdir(config.out_dir)):
+  os.makedirs(config.out_dir)
+  print("out_dir: %s" % config.out_dir)
 
+ch = logging.StreamHandler(sys.stdout)
+fh = logging.FileHandler(config.out_dir + '/log.txt')
+logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s %(message)s', datefmt='%m/%d %H:%M:%S', handlers=[ch, fh])
 
 torch.manual_seed(0)
 torch.cuda.manual_seed(0)
+
+logging.basicConfig(level=logging.INFO, format="")
+
 
 def get_trainer(trainer):
   if trainer == 'ContrastiveLossTrainer':
@@ -46,7 +63,7 @@ def main(config, resume=False):
 def train_parallel(rank, world_size, seed, config):
   # This function is performed in parallel in several processes, one for each available GPU
   os.environ['MASTER_ADDR'] = 'localhost'
-  os.environ['MASTER_PORT'] = '8887'
+  os.environ['MASTER_PORT'] = '8886'
   dist.init_process_group(backend='nccl', world_size=world_size, rank=rank)
   torch.manual_seed(seed)
   np.random.seed(seed)
@@ -84,15 +101,8 @@ def train_parallel(rank, world_size, seed, config):
 
 if __name__ == "__main__":
 
-  with open('train_fcgf_kitti_argv.pickle', 'rb') as fid:
-    sys.argv = pickle.load(fid)  
     
   logger = logging.getLogger()
-  config = get_config()
-  config.out_dir = config.out_dir.replace('2021-03-02_15-29-31',datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-  print("out_dir: %s" % config.out_dir)
-  with open ('out_dir.txt', 'w') as fid:
-    fid.write(config.out_dir + '\n')
 
   config.batch_size = 6
   
@@ -106,16 +116,6 @@ if __name__ == "__main__":
     # remote_file = 'remote_checkpoint.pth'
     # config.weights = remote_file
 
-  if not(os.path.isdir(config.out_dir)):
-    os.makedirs(config.out_dir)
-
-  ch = logging.StreamHandler(sys.stdout)
-  fh = logging.FileHandler(config.out_dir + '/log.txt')
-  logging.getLogger().setLevel(logging.INFO)
-  logging.basicConfig(
-      format='%(asctime)s %(message)s', datefmt='%m/%d %H:%M:%S', handlers=[ch, fh])
-  logging.basicConfig(level=logging.INFO, format="")   
-  
   dconfig = vars(config)
   if config.resume_dir:
     resume_config = json.load(open(config.resume_dir + '/config.json', 'r'))
